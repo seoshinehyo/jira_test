@@ -50,8 +50,8 @@ jobs:
         id: create
         uses: atlassian/gajira-create@v3
         with:
-          project: 테스트
-          issuetype: DEV
+          project: test
+          issuetype: 작업
           summary: '${{ github.event.issue.title }}'
           description: '${{ steps.md2jira.outputs.output-text }}'
           fields: |
