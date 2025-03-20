@@ -23,11 +23,39 @@ jobs:
         with:
           ref: main
 
+      - name: Set Issue Data Based on Title
+        id: set-data
+        shell: bash
+        run: |
+          ISSUE_TITLE="${{ github.event.issue.title }}"
+          echo "Detected issue title: $ISSUE_TITLE"
+          if echo "$ISSUE_TITLE" | grep -iq '\[Bug\]'; then
+            echo "ISSUE_TYPE=버그" >> $GITHUB_ENV
+            echo "TEMPLATE_PATH=.github/ISSUE_TEMPLATE/bug-form.yml" >> $GITHUB_ENV
+            echo "Bug issue detected based on title."
+          elif echo "$ISSUE_TITLE" | grep -iq '\[Feature\]'; then
+            echo "ISSUE_TYPE=작업" >> $GITHUB_ENV
+            echo "TEMPLATE_PATH=.github/ISSUE_TEMPLATE/feature-form.yml" >> $GITHUB_ENV
+            echo "Feature issue detected based on title."
+          elif echo "$ISSUE_TITLE" | grep -iq '\[Refactor\]'; then
+            echo "ISSUE_TYPE=작업" >> $GITHUB_ENV
+            echo "TEMPLATE_PATH=.github/ISSUE_TEMPLATE/refactor-form.yml" >> $GITHUB_ENV
+            echo "Refactor issue detected based on title."
+          elif echo "$ISSUE_TITLE" | grep -iq '\[Chore\]'; then
+            echo "ISSUE_TYPE=작업" >> $GITHUB_ENV
+            echo "TEMPLATE_PATH=.github/ISSUE_TEMPLATE/chore-form.yml" >> $GITHUB_ENV
+            echo "Chore issue detected based on title."
+          else
+            echo "ISSUE_TYPE=작업" >> $GITHUB_ENV
+            echo "TEMPLATE_PATH=.github/ISSUE_TEMPLATE/feature-form.yml" >> $GITHUB_ENV
+            echo "No specific issue type detected. Defaulting to Feature settings."
+          fi
+
       - name: Issue Parser
         uses: stefanbuck/github-issue-praser@v3
         id: issue-parser
         with:
-          template-path: .github/ISSUE_TEMPLATE/issue-form.yml
+          template-path: ${{ env.TEMPLATE_PATH }}
 
       - name: Log Issue Parser
         run: |
@@ -51,32 +79,18 @@ jobs:
         uses: atlassian/gajira-create@v3
         with:
           project: COM
-          issuetype: Task
+          issuetype: ${{ env.ISSUE_TYPE }}
           summary: '${{ github.event.issue.title }}'
           description: '${{ steps.md2jira.outputs.output-text }}'
           fields: |
             {
               "parent": {
-                "key": "${{ steps.issue-parser.outputs.parentKey }}"
+                "key": "${{ steps.issue-parser.outputs.issueparser_parentKey }}"
               }
             }
-      
 
       - name: Log created issue
         run: echo "Jira Issue ${{ steps.issue-parser.outputs.parentKey }}/${{ steps.create.outputs.issue }} was created"
-
-      - name: Checkout develop code
-        uses: actions/checkout@v4
-        with:
-          ref: develop
-
-      - name: Create branch with Ticket number
-        run: |
-          ISSUE_NUMBER="${{ steps.create.outputs.issue }}"
-          ISSUE_TITLE="${{ steps.issue-parser.outputs.issueparser_branch}}"
-          BRANCH_NAME="${ISSUE_NUMBER}-$(echo ${ISSUE_TITLE} | sed 's/ /-/g')"
-          git checkout -b "${BRANCH_NAME}"
-          git push origin "${BRANCH_NAME}"
 
       - name: Update issue title
         uses: actions-cool/issues-helper@v3
